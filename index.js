@@ -1,9 +1,9 @@
 const express = require('express')
-var fs = require('fs');
-require('dotenv').config({ path: '../hls/.env' })
-var jwt = require('jsonwebtoken');
+var fs = require('fs')
+require('dotenv').config()
+var jwt = require('jsonwebtoken')
 var redis = require("redis"),
-    redisClient = redis.createClient();
+    redisClient = redis.createClient()
 
 const app = express()
 const port = 3000
@@ -29,7 +29,7 @@ const getPlaylist = count => {
             playlistArray = playlistArray.concat(chunk)
         }
     }
-    const playlist = playlistArray.join('\n');
+    const playlist = playlistArray.join('\n')
     return playlist
 }
 
@@ -58,8 +58,8 @@ const getPlaylist = count => {
 ///// Test area END
 
 app.use('/hls/:token', (req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    res.header("Access-Control-Allow-Origin", "*")
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
     try {
         jwt.verify(req.params.token, process.env.JWT_SECRET)
     } catch (err) {
