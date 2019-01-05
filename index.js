@@ -33,30 +33,6 @@ const getPlaylist = count => {
     return playlist
 }
 
-///// Test area
-
-// redisClient.HMSET('key2', {
-//     "0123456789": "abcdefghij", // NOTE: key and value will be coerced to strings
-//     "some manner of key": "a type of value"
-// }, () => {
-//     redisClient.HGET('key2', "0123456789", (err, obj) => {
-//         console.log(obj)
-//         redisClient.hset("key2", "0123456789", "hi", () => {
-//             redisClient.HGET('key2', "0123456789", (err, obj) => {
-//                 console.log(obj)
-//             })
-//         })
-//     })
-// })
-
-// redisClient.hget('key2', '0123456789', (err, val) => {
-//     console.log(val)
-// })
-
-// console.log(getPlaylist(3))
-
-///// Test area END
-
 app.use('/hls/:token', (req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*")
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
@@ -68,17 +44,6 @@ app.use('/hls/:token', (req, res, next) => {
     next()
 })
 
-// app.get('/hls/:token/playlist', (req, res) => {
-//     fs.stat('example_m3u8/playlist.m3u8', function (err, stats) {
-//         if (!stats || err) {
-//             res.status(404).end()
-//         } else {
-
-//             fs.createReadStream('example_m3u8/playlist.m3u8').pipe(res)
-//         }
-//     })
-// })
-
 app.get('/hls/:token/playlist', (req, res) => {
     const jti = jwt.verify(req.params.token, process.env.JWT_SECRET).jti
     const userKey = 'user:' + jti
@@ -86,10 +51,12 @@ app.get('/hls/:token/playlist', (req, res) => {
     redisClient.hget(userKey, 'count', (err, val) => {
         if (null === val) {
             redisClient.hset(userKey, 'count', 1)
+            redisClient.expire(userKey, 60 * 60)
             playlist = getPlaylist(1)
         } else {
             const newVal = Number(val) + 1
             redisClient.hset(userKey, 'count', newVal)
+            redisClient.expire(userKey, 60 * 60)
             playlist = getPlaylist(newVal)
         }
         res.send(playlist)
