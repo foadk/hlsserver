@@ -1,15 +1,19 @@
 const express = require('express')
-var fs = require('fs')
+const fs = require('fs')
 require('dotenv').config()
-var jwt = require('jsonwebtoken')
-var redis = require("redis"),
+const jwt = require('jsonwebtoken')
+const redis = require("redis"),
     redisClient = redis.createClient()
 
 const app = express()
 const port = 3000
 
+const NUM_OF_CHUNKS = 10
+const CHUNKS_PER_REQ = 4
+
 app.get('/', (req, res) => res.send('Hello World!'))
 
+// Build playlist based on number of request for a user
 const getPlaylist = count => {
     var playlistArray = [
         '#EXTM3U',
@@ -19,13 +23,13 @@ const getPlaylist = count => {
         '#EXT-X-TARGETDURATION:24',
     ]
     for (var i = 1; i <= count; i++) {
-        var index = (i - 1) * 4
-        for(var j = 1; j <= 4; j++) {
+        var index = (i - 1) * CHUNKS_PER_REQ
+        for (var j = 1; j <= CHUNKS_PER_REQ; j++) {
             var chunk = [
                 '#EXTINF:6.000000,',
                 (index + j) + '.ts'
             ]
-            if(1 === (index + j) % 10) chunk.unshift('#EXT-X-DISCONTINUITY')
+            if (1 === (index + j) % NUM_OF_CHUNKS) chunk.unshift('#EXT-X-DISCONTINUITY')
             playlistArray = playlistArray.concat(chunk)
         }
     }
@@ -33,6 +37,7 @@ const getPlaylist = count => {
     return playlist
 }
 
+// Middleware for CORS and request authorization
 app.use('/hls/:token', (req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*")
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
@@ -44,28 +49,23 @@ app.use('/hls/:token', (req, res, next) => {
     next()
 })
 
+// Route for returning  playlist based on number of request for a user
 app.get('/hls/:token/playlist', (req, res) => {
     const jti = jwt.verify(req.params.token, process.env.JWT_SECRET).jti
     const userKey = 'user:' + jti
-    var playlist = null
-    redisClient.hget(userKey, 'count', (err, val) => {
-        if (null === val) {
-            redisClient.hset(userKey, 'count', 1)
-            redisClient.expire(userKey, 60 * 60)
-            playlist = getPlaylist(1)
-        } else {
-            const newVal = Number(val) + 1
-            redisClient.hset(userKey, 'count', newVal)
-            redisClient.expire(userKey, 60 * 60)
-            playlist = getPlaylist(newVal)
-        }
+    redisClient.hget(userKey, 'reqCount', (err, val) => {
+        const requestCount = (null === val) ? 1 : Number(val) + 1
+        redisClient.hset(userKey, 'reqCount', requestCount)
+        redisClient.expire(userKey, 60 * 60)
+        const playlist = getPlaylist(requestCount)
         res.send(playlist)
     })
 })
 
+// Rotue for returning .ts file
 app.get('/hls/:token/:name', (req, res) => {
     const fileNo = req.params.name.split('.')[0]
-    const chunkNo = (fileNo % 10 == 0) ? 10 : fileNo % 10
+    const chunkNo = (fileNo % NUM_OF_CHUNKS == 0) ? NUM_OF_CHUNKS : fileNo % NUM_OF_CHUNKS
     const fileName = chunkNo + '.ts'
     fs.stat('example_m3u8/' + fileName, function (err, stats) {
         if (!stats || err) {
