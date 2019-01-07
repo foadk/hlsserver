@@ -57,7 +57,7 @@ app.get('/hls/:token/playlist', (req, res) => {
         const requestCount = (null === val) ? 1 : Number(val) + 1
         redisClient.hset(userKey, 'reqCount', requestCount)
         redisClient.expire(userKey, 60 * 60)
-        const playlist = getPlaylist(requestCount)
+        const playlist = getPlaylist(100)
         res.send(playlist)
     })
 })
